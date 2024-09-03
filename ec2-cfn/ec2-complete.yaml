@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with a security groups
+
+Resources:
+  ZabbixEC2SecurityGroup: # Modificar
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: server-zabbix # Modificar
+      GroupDescription: Security group for server-zabbix instance # Modificar
+      VpcId: vpc-2cac1c4b
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  ZabbixEC2Instance: # Modificar
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      KeyName: enviaflores
+      SubnetId: subnet-beeb3dd9
+      ImageId: ami-0754890205aaadae1  
+      SecurityGroupIds:
+        - !Ref ZabbixEC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: server-zabbix # Modificar
+      
+
+
+            
+
+            
+
+Outputs:
+  InstanceId:
+    Description: Instance ID of the newly created EC2 instance
+    Value: !Ref ZabbixEC2Instance

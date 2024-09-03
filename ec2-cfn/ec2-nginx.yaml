@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with a security groups
+
+Resources:
+  Laravel2030stagingEC2SecurityGroup: # Modificar
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: Laravel2030staging # Modificar
+      GroupDescription: Security group for Laravel2030staging instance # Modificar
+      VpcId: vpc-2cac1c4b
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  Laravel2030stagingEC2Instance: # Modificar
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      KeyName: enviaflores
+      SubnetId: subnet-beeb3dd9
+      ImageId: ami-0cf2b4e024cdb6960  # Ubuntu Server 24.04 LTS
+      SecurityGroupIds:
+        - !Ref Laravel2030stagingEC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: Laravel2030staging # Modificar
+      UserData:
+        Fn::Base64: 
+          !Sub |
+            #!/bin/bash
+            #!/bin/bash
+            # Actualizar el índice de paquetes
+            apt update -y
+
+            # Instalar las dependencias necesarias
+            apt install -y software-properties-common
+
+            # Agregar el repositorio de PHP
+            add-apt-repository ppa:ondrej/php -y
+            apt update -y
+
+            # Instalar PHP 8.2 y extensiones necesarias
+            apt install -y php8.2 php8.2-fpm php8.2-mysql php8.2-xml php8.2-mbstring
+
+            # Instalar Nginx
+            apt install -y nginx
+
+            # Habilitar y arrancar los servicios de Nginx y PHP-FPM
+            systemctl enable nginx
+            systemctl start nginx
+            systemctl enable php8.2-fpm
+            systemctl start php8.2-fpm
+
+
+Outputs:
+  InstanceId:
+    Description: Instance ID of the newly created EC2 instance
+    Value: !Ref Laravel2030stagingEC2Instance

@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with a security group
+
+Resources:
+  BackendEC2SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: backend-ecommerce
+      GroupDescription: Security group for backend-ecommerce instance
+      VpcId: vpc-2cac1c4b
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  BackendEC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t1.micro
+      KeyName: enviaflores
+      SubnetId: subnet-beeb3dd9
+      ImageId: ami-0eb9d67c52f5c80e5  # Amazon Linux 3 AMI ID
+      SecurityGroupIds:
+        - !Ref BackendEC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: backend-ecommerce
+
+Outputs:
+  InstanceId:
+    Description: Instance ID of the newly created EC2 instance
+    Value: !Ref BackendEC2Instance
