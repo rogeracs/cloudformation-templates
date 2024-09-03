@@ -1,4 +1,0 @@
-ECSCluster:
-  Type: 'AWS::ECS::Cluster'
-  Properties:
-      ClusterName: MyFargateCluster
