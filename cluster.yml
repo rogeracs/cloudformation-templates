@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  ECSCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: CFNCluster
+  ECSTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - >-
+              /bin/sh -c "echo '<html> <head> <title>Amazon ECS Sample
+              App</title> <style>body {margin-top: 40px; background-color:
+              #333;} </style> </head><body> <div
+              style=color:white;text-align:center> <h1>Amazon ECS Sample
+              App</h1> <h2>Congratulations!</h2> <p>Your application is now
+              running on a container in Amazon ECS.</p> </div></body></html>' > 
+              /usr/local/apache2/htdocs/index.html && httpd-foreground"
+          EntryPoint:
+            - sh
+            - '-c'
+          Essential: true
+          Image: 'httpd:2.4'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/fargate-task-definition
+              awslogs-region: us-west-2
+              awslogs-stream-prefix: ecs
+          Name: sample-fargate-app
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: tcp
+      Cpu: 256
+      ExecutionRoleArn: 'arn:aws:iam::337583525037:role/ecsAdmin'
+      Family: task-definition-cfn
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+  ECSService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      ServiceName: cfn-service
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - sg-0d4472ffbfbcb5159
+          Subnets:
+            - subnet-06523d82084b516c2
+            - subnet-0942d020b0d158711
+      TaskDefinition: !Ref ECSTaskDefinition

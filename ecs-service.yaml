@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  ClusterName:
+    Type: String
+    Default: MyECSCluster
+  TaskDefinitionName:
+    Type: String
+    Default: MyFargateTaskDefinition
+
+Resources:
+  ECSCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  TaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub ${ClusterName}-TaskExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ecs-task-execution-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:BatchGetImage'
+                Resource: '*'
+              - Effect: 'Allow'
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:CreateLogGroup'
+                Resource: '*'
+
+  FargateTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      ContainerDefinitions:
+        - Name: ApacheTest
+          Image: 'httpd:2.4'
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: entryPoint
+              Value: 'sh, -c'
+            - Name: command
+              Value: >-
+                /bin/sh -c \"echo '<html> <head> <title>Amazon ECS Sample
+                App</title> <style>body {margin-top: 40px; background-color:
+                #333;} </style> </head><body> <div
+                style=color:white;text-align:center> <h1>Amazon ECS Sample
+                App</h1> <h2>Congratulations!</h2> <p>Your application is now
+                running on a container in Amazon ECS.</p> </div></body></html>'
+                >  /usr/local/apache2/htdocs/index.html && httpd-foreground\"
+          EnvironmentFiles: []
+      Family: apache
+      Cpu: 1 vCPU
+      Memory: 3 GB
+      RuntimePlatform:
+             CpuArchitecture: X86_64
+             OperatingSystemFamily: LINUX
+
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc  # Agrega esta línea para especificar el modo de red
+
+  ECSService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: MyECSService  # Puedes cambiar esto a un nombre que prefieras
+      TaskDefinition: !Ref FargateTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1  # Número deseado de tareas en ejecución
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - 'subnet-79ebeb00'  # Sustituye con tus subnet IDs
+          SecurityGroups:
+            - 'sg-f844f6b4'  # Sustituye con tus security group IDs

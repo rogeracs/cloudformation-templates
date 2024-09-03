@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  MyExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "MyExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+
+  MyTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "MyTaskRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "MyTaskPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ecs:ListTasks"
+                  - "ecs:DescribeTasks"
+                  - "ecs:StopTask"
+                  # Add any additional permissions your task needs here
+                Resource: "*"
+
+  ECSCluster:
+  Type: 'AWS::ECS::Cluster'
+  Properties:
+    ClusterName: MyFargateCluster
+    CapacityProviders:
+      - FARGATE
+      - FARGATE_SPOT
+    DefaultCapacityProviderStrategy:
+      - CapacityProvider: FARGATE
+        Weight: 1
+      - CapacityProvider: FARGATE_SPOT
+        Weight: 1
+      - Configuration:
+        ExecuteCommandConfiguration:
+        Logging: DEFAULT              
+
+  MyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: first-run-task
+          Image: 'httpd:2.4'
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: entryPoint
+              Value: 'sh, -c'
+            - Name: command
+              Value: >-
+                /bin/sh -c \"echo '<html> <head> <title>Amazon ECS Sample
+                App</title> <style>body {margin-top: 40px; background-color:
+                #333;} </style> </head><body> <div
+                style=color:white;text-align:center> <h1>Amazon ECS Sample
+                App</h1> <h2>Congratulations!</h2> <p>Your application is now
+                running on a container in Amazon ECS.</p> </div></body></html>'
+                >  /usr/local/apache2/htdocs/index.html && httpd-foreground\"
+          EnvironmentFiles: []
+      Family: first-run-task
+      Cpu: 1 vCPU
+      Memory: 3 GB
+
+                          

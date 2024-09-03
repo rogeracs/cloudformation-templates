@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template para crear un servicio ECS asociado con un Application Load Balancer usando despliegue Blue/Green con Applicacion de CodeDeploy.
+
+
+
+
+######################  Not Working ################################################
+Resources:
+  ################################ ALB Part   ##################
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Laravel Admin ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0  
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: my-alb-for-admin
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  BlueTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ef-adminenv-tg-blue
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200-299,302
+
+  GreenTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ef-adminenv-tg-green
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200-299,302
+
+# Blue HTTP Listener
+  BlueHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BlueTargetGroupHTTP
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # Green HTTP Listener
+  GreenHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref GreenTargetGroupHTTP
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 8080
+      Protocol: HTTP    
+
+
+  ################################ CodeDeploy Part   ###################
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ComputePlatform: ECS
+      ApplicationName: LaravelAdminApp  # Nombre de la aplicación CodeDeploy
+
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: LaravelAdminDeploymentGroup
+      ServiceRoleArn: arn:aws:iam::337583525037:role/CodeDeployServiceRole
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+        GreenFleetProvisioningOption:
+          Action: DISCOVER_EXISTING
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - TargetGroups:
+              - Name: !Ref BlueTargetGroupHTTP
+              - Name: !Ref GreenTargetGroupHTTP
+            ProdTrafficRoute:
+              ListenerArns:
+                - !Ref BlueHTTPListener
+                - !Ref GreenHTTPListener
+
+################################ ECS Service #############################
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: laravel-admin-enviaflores
+      ServiceName: lavarel-admin
+      DesiredCount: 2
+      DeploymentController:
+        Type: CODE_DEPLOY
+      HealthCheckGracePeriodSeconds: 20
+      PlatformVersion: LATEST
+      LaunchType: FARGATE
+      TaskDefinition: arn:aws:ecs:us-west-2:337583525037:task-definition/laravel-enviaflores-admin:3
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref LoadBalancerSecurityGroup
+          Subnets:
+            - !Ref SubnetA
+            - !Ref SubnetB
+      LoadBalancers:
+        - ContainerName: laravel-enviaflores-admin
+          ContainerPort: 80
+          TargetGroupArn: !Ref BlueTargetGroupHTTP
+
+  
+    DependsOn:
+      - BlueHTTPListener
+      - GreenHTTPListener
+
+
+Parameters:
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID para el ALB y los grupos de destino
+  SubnetA:
+    Type: AWS::EC2::Subnet::Id
+    Description: ID de la subred para el ALB
+  SubnetB:
+    Type: AWS::EC2::Subnet::Id
+    Description: ID de la subred para el ALB

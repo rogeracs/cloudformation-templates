@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  MyExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "MyExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+
+  MyTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "MyTaskRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "MyTaskPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ecs:ListTasks"
+                  - "ecs:DescribeTasks"
+                  - "ecs:StopTask"
+                  # Add any additional permissions your task needs here
+                Resource: "*"
+
+  MyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "MyTaskFamily"
+      ContainerDefinitions:
+        - Name: "MyContainer"
+          Image: "nginx:latest"
+          Memory: 512
+          Cpu: 256
+      ExecutionRoleArn: !GetAtt MyExecutionRole.Arn
+      TaskRoleArn: !GetAtt MyTaskRole.Arn
+

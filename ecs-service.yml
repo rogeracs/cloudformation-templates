@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: The template used to create an ECS Service associated with an Application Load Balancer with Blue/Green deployment.
+
+Parameters:
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for the ALB and Target Groups
+  SubnetA:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the ALB
+  SubnetB:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the ALB
+  SubnetC:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the ALB
+  SSLCertificateArn:
+    Type: String
+    Description: ARN of the SSL Certificate for the ALB
+  HostedZoneId:
+    Type: String
+    Description: Hosted Zone ID for the Route 53 domain
+
+Resources:
+  ################################ ALB Part ##################
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: flutter-ui-site-sg  # CAMBIO: Cambia el nombre del Security Group para tu nueva aplicación
+      GroupDescription: Security Group flutter-ui-site ALB  # CAMBIO: Cambia la descripción para tu nueva aplicación
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0    
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: flutter-ui-site-alb  # CAMBIO: Cambia el nombre del Load Balancer para tu nueva aplicación
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  BlueTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: flutter-ui-site-tg-blue  # CAMBIO: Cambia el nombre del Target Group para tu nueva aplicación
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200-299,302
+
+  GreenTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: flutter-ui-site-tg-green  # CAMBIO: Cambia el nombre del Target Group para tu nueva aplicación
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200-299,302
+
+  # Blue HTTP Listener
+  BlueHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BlueTargetGroupHTTP
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref SSLCertificateArn
+
+  # Green HTTP Listener
+  GreenHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref GreenTargetGroupHTTP
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 8080
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref SSLCertificateArn    
+
+  ################################ ECS Cluster #############################
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: flutter-ui-site  # CAMBIO: Cambia el nombre del clúster para tu nueva aplicación
+
+  ################################ ECS Task Definition ####################
+
+  FlutterUiSiteTaskDefinition: # CAMBIO
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties: 
+      Family: 'flutter-ui-site'  # CAMBIO: Cambia el nombre de la familia de la tarea para tu nueva aplicación
+      TaskRoleArn: 'arn:aws:iam::337583525037:role/ecsTaskExecutionRole'
+      ExecutionRoleArn: 'arn:aws:iam::337583525037:role/ecsTaskExecutionRole'
+      NetworkMode: 'awsvpc'
+      RequiresCompatibilities: 
+        - 'FARGATE'
+      Cpu: '1024'
+      Memory: '2048'
+      ContainerDefinitions: 
+        - Name: 'flutter-ui-site'  # CAMBIO: Cambia el nombre del contenedor para tu nueva aplicación
+          Image: '337583525037.dkr.ecr.us-west-2.amazonaws.com/flutter-ui-site@sha256:db90f96d34e194768106d8752450976b986922b6e36e8631fb59aac5faff0e30'  # CAMBIO: Cambia la imagen del contenedor para tu nueva aplicación
+          Cpu: 0
+          PortMappings: 
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: 'tcp'
+          Essential: true
+          Environment: []
+          MountPoints: []
+          VolumesFrom: []
+          DockerLabels: 
+            name: 'flutter-ui-site'  # CAMBIO: Cambia la etiqueta del contenedor para tu nueva aplicación
+          LogConfiguration: 
+            LogDriver: 'awslogs'
+            Options: 
+              awslogs-group: '/ecs/flutter-ui-site'  # CAMBIO: Cambia el grupo de logs para tu nueva aplicación
+              awslogs-region: 'us-west-2'
+              awslogs-stream-prefix: 'flutter-ui-site'  # CAMBIO: Cambia el prefijo del stream de logs para tu nueva aplicación
+          SystemControls: []
+
+  FlutterUiSiteLogGroup: # CAMBIO
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: '/ecs/flutter-ui-site'  # CAMBIO: Cambia el nombre del grupo de logs para tu nueva aplicación
+      RetentionInDays: 30
+
+  ################################ ECS Service #############################
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: flutter-ui-site  # CAMBIO: Cambia el nombre del servicio ECS para tu nueva aplicación
+      DesiredCount: 2
+      DeploymentController:
+        Type: CODE_DEPLOY
+      HealthCheckGracePeriodSeconds: 20
+      PlatformVersion: LATEST
+      LaunchType: FARGATE
+      TaskDefinition: !Ref FlutterUiSiteTaskDefinition # CAMBIO
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref LoadBalancerSecurityGroup
+          Subnets:
+            - !Ref SubnetA
+            - !Ref SubnetB
+            - !Ref SubnetC
+      LoadBalancers:
+        - ContainerName: flutter-ui-site  # CAMBIO: Asegúrate de que coincida con el nombre dels contenedor en la Task Definition
+          ContainerPort: 80
+          TargetGroupArn: !Ref BlueTargetGroupHTTP
+
+    DependsOn:
+      - BlueHTTPListener
+      - GreenHTTPListener
+
+  ################################ Route 53 Record #########################
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: flutter-ui-site.enviaflores.com  # CAMBIO: Cambia el nombre del dominio para tu nueva aplicación
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+        DNSName: !GetAtt LoadBalancer.DNSName

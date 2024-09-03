@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "ECS Cluster using Fargate"
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: "MyECSCluster"
+    Description: "Name for the ECS Cluster"
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "my-ecs-task"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSCluster.ExecutionRoleArn
+      ContainerDefinitions:
+        - Name: my-nginx-container
+          Image: "nginx:latest"
+          PortMappings:
+            - ContainerPort: 80
+      
+      Cpu: 1 vCPU
+      Memory: 3 GB
+
+  ECSExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-ECSExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+
+  ECSTaskExecutionRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${ClusterName}-ECSTaskExecutionRolePolicy"
+      Roles:
+        - !Ref ECSExecutionRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "ecr:GetAuthorizationToken"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:BatchGetImage"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "*"
+
+Outputs:
+  ClusterNameOutput:
+    Description: "Name of the created ECS Cluster"
+    Value: !Ref ECSCluster

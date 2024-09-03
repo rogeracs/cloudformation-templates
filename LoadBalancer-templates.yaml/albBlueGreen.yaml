@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: The template used to create an ECS Service associated with an Application Load Balancer with Blue/Green deployment.
+
+Resources:
+  ################################ ALB Part   ##################
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: efadmin-alb-sg
+      GroupDescription: Security Group for Laravel Admin ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0  
+  
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: laravel-efadmin-alb
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  BlueTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: efenv-tg-blue
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200-299,302
+
+  GreenTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: efenv-tg-green
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: 200-299,302
+
+      
+  # Blue HTTP Listener
+  BlueHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BlueTargetGroupHTTP
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # Green HTTP Listener
+  GreenHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref GreenTargetGroupHTTP
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 8080
+      Protocol: HTTP    
+
+  ################################ CodeDeploy Part   ###################
+
+
+################################ ECS Service #############################
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: laravel-admin-enviaflores
+      ServiceName: lavarel-admin
+      DesiredCount: 2
+      DeploymentController:
+        Type: CODE_DEPLOY
+      HealthCheckGracePeriodSeconds: 20
+      PlatformVersion: LATEST
+      LaunchType: FARGATE
+      TaskDefinition: arn:aws:ecs:us-west-2:337583525037:task-definition/laravel-enviaflores-admin:4
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref LoadBalancerSecurityGroup
+          Subnets:
+            - !Ref SubnetA
+            - !Ref SubnetB
+      LoadBalancers:
+        - ContainerName: laravel-enviaflores-admin
+          ContainerPort: 80
+          TargetGroupArn: !Ref BlueTargetGroupHTTP
+
+    DependsOn:
+      - BlueHTTPListener
+      - GreenHTTPListener
+
+Parameters:
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for the ALB and Target Groups
+  SubnetA:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the ALB
+  SubnetB:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet ID for the ALB

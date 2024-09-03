@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create an EC2 instance for backend-ecommerce
+
+Resources:
+  BackendEcommerceInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties: 
+      InstanceType: 't1.micro'
+      KeyName: 'enviaflores'
+      ImageId: 'ami-0b20a6f09484773af'
+      SubnetId: 'subnet-beeb3dd9'
+      Tags: 
+        - Key: 'Name'
+          Value: 'backend-ecommerce'
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Update system packages
+          sudo yum update -y
+
+          # Install Nginx
+          sudo amazon-linux-extras install nginx1.12 -y
+
+          # Install PHP 8.2
+          sudo amazon-linux-extras install php8.2 -y
+
+          # Install PHP-FPM
+          sudo yum install php-fpm -y
+
+          # Start Nginx and PHP-FPM services
+          sudo systemctl start nginx
+          sudo systemctl start php-fpm
+
+   
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: 'backend-ecommerce'
+      GroupDescription: 'Enable SSH and HTTP access'
+      VpcId: 'vpc-2cac1c4b'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: '0.0.0.0/0'
+
+      Tags:
+        - Key: Name
+          Value: backend-ecommerce

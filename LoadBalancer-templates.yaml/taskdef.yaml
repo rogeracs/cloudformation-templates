@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # CAMBIO: Cambia el nombre del recurso para reflejar la nueva aplicación
+  OtraAppTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties: 
+      # CAMBIO: Cambia el nombre de la familia de la tarea para la nueva aplicación
+      Family: 'otra-app'
+      TaskRoleArn: 'arn:aws:iam::337583525037:role/ecsTaskExecutionRole'
+      ExecutionRoleArn: 'arn:aws:iam::337583525037:role/ecsTaskExecutionRole'
+      NetworkMode: 'awsvpc'
+      RequiresCompatibilities: 
+        - 'FARGATE'
+      Cpu: '1024'
+      Memory: '2048'
+      ContainerDefinitions: 
+        - # CAMBIO: Cambia el nombre del contenedor para la nueva aplicación
+          Name: 'otra-app'
+          # CAMBIO: Cambia la imagen del contenedor para la nueva aplicación
+          Image: '337583525037.dkr.ecr.us-west-2.amazonaws.com/otra-app:latest'
+          Cpu: 0
+          PortMappings: 
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: 'tcp'
+          Essential: true
+          Environment: []
+          EnvironmentFiles: 
+            - Type: 's3'
+              # CAMBIO: Cambia el archivo de entorno para la nueva aplicación
+              Value: 'arn:aws:s3:::uxmaltech/env-otra-app.env'
+          MountPoints: []
+          VolumesFrom: []
+          DockerLabels: 
+            # CAMBIO: Cambia la etiqueta del contenedor para la nueva aplicación
+            name: 'otra-app'
+          LogConfiguration: 
+            LogDriver: 'awslogs'
+            Options: 
+              # CAMBIO: Cambia el grupo de logs para la nueva aplicación
+              awslogs-group: '/ecs/otra-app'
+              awslogs-region: 'us-west-2'
+              # CAMBIO: Cambia el prefijo del stream de logs para la nueva aplicación
+              awslogs-stream-prefix: 'otra-app'
+          SystemControls: []
+
+  # CAMBIO: Cambia el nombre del recurso de grupo de logs para la nueva aplicación
+  OtraAppLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      # CAMBIO: Cambia el nombre del grupo de logs para la nueva aplicación
+      LogGroupName: '/ecs/otra-app'
+      RetentionInDays: 30
